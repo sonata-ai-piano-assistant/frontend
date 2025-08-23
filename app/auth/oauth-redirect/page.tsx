@@ -1,14 +1,14 @@
 "use client";
-import { useEffect } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 
 // This page is used as the OAuth redirect URI
 // It extracts the token from the URL and updates the UserContext
-export default function OAuthRedirectPage() {
+function OAuthRedirectInner() {
   const router = useRouter();
   const { login } = useUser();
-   const searchParams = useSearchParams();
+  const searchParams = useSearchParams();
   const token = searchParams.get("token");
   useEffect(() => {
     if (token) {
@@ -18,7 +18,15 @@ export default function OAuthRedirectPage() {
     } else {
       router.replace("/auth/login");
     }
-  }, [router]);
+  }, [router, token, login]);
 
   return <div className="flex min-h-screen items-center justify-center">Connexion en cours...</div>;
+}
+
+export default function OAuthRedirectPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Chargement...</div>}>
+      <OAuthRedirectInner />
+    </Suspense>
+  );
 }
