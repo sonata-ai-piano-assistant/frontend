@@ -18,7 +18,7 @@ function OAuthRedirectInner() {
     } else {
       router.replace("/auth/login");
     }
-  }, [router, token, login]);
+  }, []);
 
   return <div className="flex min-h-screen items-center justify-center">Connexion en cours...</div>;
 }
