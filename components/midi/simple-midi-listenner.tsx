@@ -258,8 +258,10 @@ const sendPerformance = async () => {
                   <div
                     key={note}
                     className={`
-                      ${isBlackKey ? "bg-black text-white h-12 w-6 -mx-3 z-10 relative" : "bg-white border border-gray-300 h-20 w-8"}
-                      ${isActive ? (isBlackKey ? "bg-primary" : "bg-primary/20") : ""}
+                      ${isBlackKey 
+                        ? `h-12 w-6 -mx-3 z-10 relative text-white ${isActive ? "bg-primary" : "bg-black"}`
+                        : `h-20 w-8  border border-gray-300 ${isActive ? "bg-primary/20" : "bg-white"}`
+                      }
                       flex items-end justify-center pb-1 text-[8px] transition-colors
                     `}
                   >
