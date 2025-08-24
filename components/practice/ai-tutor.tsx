@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,12 @@ import {
   Send,
 } from "lucide-react";
 import { useMIDIPerformance } from "@/components/midi/midi-performance-provider";
+import { z } from "zod"
+import { zodResolver } from "@hookform/resolvers/zod"
+
+import { getThreadById, sendAIMessage } from "@/lib/api/assistant";
+import { formatStringToJSON } from "@/lib/utils";
+import { Controller, useForm } from "react-hook-form";
 
 interface AITutorProps {
   isListening: boolean;
@@ -34,20 +40,171 @@ interface Message {
   content: string;
   role: "user" | "assistant";
   timestamp: Date;
-  type?: "voice" | "text" | "system";
+  type?: typeof MessageType[keyof typeof MessageType];
 }
 
-import { getThreadById, sendAIMessage } from "@/lib/api/assistant";
-import { formatStringToJSON } from "@/lib/utils";
+interface IChatMessage {
+  message: Message;
+}
+interface AIChatMessage {
+  message: string;
+}
+const MessageType = {
+  Text: "text",
+  Voice: "voice",
+  System: "system",
+} as const;
 
-export function AITutor({
-  isListening,
-  toggleListening,
-  sessionId,
-  threadId,
-  userId,
-}: AITutorProps) {
-  const { performanceAnalysis } = useMIDIPerformance();
+const MessageRole = {
+  User: "user",
+  Assistant: "assistant",
+  System: "system",
+} as const;
+
+// Suggest questions to the user
+const suggestedQuestions = [
+  "How do I play this scale?",
+  "What is the correct fingering?",
+  "What should I focus on?",
+];
+
+const schema = z.object({
+  message: z.string().min(2, "⚠️ Message must be at least 2 characters long").max(1000, "⚠️ Message must be at most 1000 characters long")
+});
+
+const formatAiResponse = (msg: any) => {
+  let content = "";
+  if (Array.isArray(msg.content)) {
+    content = msg.content
+      .map((part: any) => {
+        if (
+          part.text &&
+          typeof part.text === "object" &&
+          part.text.value
+        ) {
+          return part.text.value;
+        }
+        if (typeof part.text === "string") {
+          return part.text;
+        }
+        return "";
+      })
+      .join(" ");
+  } else if (msg.content?.text?.value) {
+    content = msg.content.text.value;
+  } else if (msg.content?.text) {
+    content = msg.content.text;
+  } else if (typeof msg.content === "string") {
+    content = msg.content;
+  }
+  return {
+    id: msg.id,
+    content,
+    role: msg.role,
+    timestamp: new Date(msg.created_at * 1000),
+    type: msg.type || MessageType.Text,
+  };
+}
+export function ChatMessage(props: IChatMessage) {
+  const { message } = props;
+  const { id, content, role, timestamp, type } = message;
+
+  let parsedContent = content;
+  if (role === MessageRole.Assistant) {
+    let json = formatStringToJSON(content);
+    // Handle both {messages:[],emotion:""} and {messages:{messages:[],emotion:""}}
+    if (json && typeof json === "object") {
+      // Case 1: {messages:[], emotion:""}
+      if (Array.isArray(json.messages) && typeof json.emotion === "string") {
+        parsedContent =
+          (json.emotion ? json.emotion + " " : "") +
+          json.messages
+            .map((m: any) =>
+              typeof m === "object" && m.value ? m.value : m
+            )
+            .join(" ");
+      }
+      // Case 2: {messages:{messages:[],emotion:""}}
+      else if (
+        json.messages &&
+        typeof json.messages === "object" &&
+        Array.isArray(json.messages.messages)
+      ) {
+        parsedContent =
+          (json.messages.emotion ? json.messages.emotion + " " : "") +
+          json.messages.messages
+            .map((m: any) =>
+              typeof m === "object" && m.value ? m.value : m
+            )
+            .join(" ");
+      }
+    }
+  }
+  return (
+    <div
+      key={id}
+      className={`flex ${role === MessageRole.User
+        ? "justify-end"
+        : "justify-start"
+        }`}
+    >
+      <div className="flex items-start gap-2 max-w-[85%]">
+        {role === MessageRole.Assistant && (
+          <Fragment>
+            <Avatar className="h-6 w-6 mt-1">
+              <AvatarImage
+                src="/ai-tutor-avatar.png"
+                alt="AI Tutor"
+              />
+              <AvatarFallback className="bg-primary/20 text-primary">
+                <Bot className="h-3 w-3" />
+              </AvatarFallback>
+            </Avatar>
+          </Fragment>
+        )}
+        <div
+          className={`rounded-lg p-2 text-sm ${role === MessageRole.User
+            ? "bg-primary text-primary-foreground"
+            : type === MessageType.System
+              ? "bg-muted border border-primary/20"
+              : "bg-muted border border-border"
+            }`}
+        >
+          {parsedContent}
+          <div className="text-xs opacity-60 mt-1 flex items-center gap-1">
+            {timestamp.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+            {type === MessageType.Voice && (
+              <Mic className="h-2.5 w-2.5" />
+            )}
+          </div>
+        </div>
+        {role === MessageRole.User && (
+          <Avatar className="h-6 w-6 mt-1">
+            <AvatarImage
+              src="/placeholder.svg"
+              alt="User"
+            />
+            <AvatarFallback className="bg-primary/10">
+              U
+            </AvatarFallback>
+          </Avatar>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function AITutor(props: AITutorProps) {
+  const {
+    isListening,
+    toggleListening,
+    sessionId,
+    threadId,
+    userId,
+  } = props;
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
   const [isExpanded, setIsExpanded] = useState(true);
@@ -60,11 +217,22 @@ export function AITutor({
     "neutral" | "happy" | "concerned"
   >("neutral");
   const [showHelp, setShowHelp] = useState(false);
-  const [textInput, setTextInput] = useState("");
+
+  const { handleSubmit, control, formState: { errors }, setValue, setFocus, watch } = useForm<AIChatMessage>({
+    defaultValues: {
+      message: '',
+    },
+    resolver: zodResolver(schema)
+  })
+  const { performanceAnalysis } = useMIDIPerformance();
   const speechSynthesisRef = useRef<SpeechSynthesis | null>(null);
   const messageTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const chatMessage = watch("message");
+
+  const onSubmit = (data: AIChatMessage) => {
+    handleSendMessage(data.message);
+  };
 
   // Initialize speech synthesis
   useEffect(() => {
@@ -90,39 +258,7 @@ export function AITutor({
       // OpenAI-style message objects with content.text.value
       setMessages(
         data.messages
-          .map((msg: any) => {
-            let content = "";
-            if (Array.isArray(msg.content)) {
-              content = msg.content
-                .map((part: any) => {
-                  if (
-                    part.text &&
-                    typeof part.text === "object" &&
-                    part.text.value
-                  ) {
-                    return part.text.value;
-                  }
-                  if (typeof part.text === "string") {
-                    return part.text;
-                  }
-                  return "";
-                })
-                .join(" ");
-            } else if (msg.content?.text?.value) {
-              content = msg.content.text.value;
-            } else if (msg.content?.text) {
-              content = msg.content.text;
-            } else if (typeof msg.content === "string") {
-              content = msg.content;
-            }
-            return {
-              id: msg.id,
-              content,
-              role: msg.role,
-              timestamp: new Date(msg.created_at * 1000),
-              type: msg.type || "text",
-            };
-          })
+          .map(formatAiResponse)
           .sort(
             (a: any, b: any) => a.timestamp.getTime() - b.timestamp.getTime()
           )
@@ -133,7 +269,6 @@ export function AITutor({
   };
   // Retreive thread messages on mount
   useEffect(() => {
-
     fetchThreadMessages();
   }, [threadId, userId, sessionId]);
 
@@ -148,9 +283,9 @@ export function AITutor({
         {
           id: Date.now().toString(),
           content: feedback,
-          role: "assistant",
+          role: MessageRole.Assistant,
           timestamp: new Date(),
-          type: "system",
+          type: MessageType.System,
         },
       ]);
 
@@ -195,7 +330,7 @@ export function AITutor({
       // Speak the new message if not muted
       if (
         !muted &&
-        messages[messages.length - 1].role === "assistant" &&
+        messages[messages.length - 1].role === MessageRole.Assistant &&
         messages[messages.length - 1].content !== currentMessage
       ) {
         speakText(messages[messages.length - 1].content);
@@ -206,7 +341,7 @@ export function AITutor({
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+      scrollAreaRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isExpanded]);
 
@@ -253,20 +388,19 @@ export function AITutor({
   };
 
   // Handle sending a text message
-  const handleSendMessage = async () => {
-    if (!textInput.trim() || !threadId || !userId || !sessionId) return;
+  const handleSendMessage = async (data: string) => {
+
+    if (!data.trim().length || !threadId || !userId || !sessionId) return;
 
     // Add user message
     const userMessage: Message = {
       id: Date.now().toString(),
-      content: textInput,
-      role: "user",
+      content: data,
+      role: MessageRole.User,
       timestamp: new Date(),
-      type: "text",
+      type: MessageType.Text,
     };
     setMessages((prev) => [...prev, userMessage]);
-    setTextInput("");
-    if (inputRef.current) inputRef.current.focus();
 
     // Add loading/typing indicator
     const typingId = (Date.now() + 0.5).toString();
@@ -275,26 +409,30 @@ export function AITutor({
       {
         id: typingId,
         content: "AI is typing...",
-        role: "assistant",
+        role: MessageRole.Assistant,
         timestamp: new Date(),
-        type: "system",
+        type: MessageType.System,
       },
     ]);
 
     // Call backend AI
     try {
-      await sendAIMessage({
+      const { response } = await sendAIMessage({
         threadId,
-        message: textInput,
+        message: data,
         userId,
         sessionId,
       });
       // Remove typing indicator
       setMessages((prev) => prev.filter((m) => m.id !== typingId));
       // Instead of adding AI response directly, refresh all messages from backend after 5s
-      setTimeout(() => {
-        fetchThreadMessages();
-      }, 5000);
+      const formattedApiResponse = formatAiResponse({ content: `${response.emotion} ${response.messages.join(" ")}` });
+      setMessages((prev) => [...prev, {
+        ...formattedApiResponse,
+        type: MessageType.System,
+        role: MessageRole.Assistant,
+        timestamp: new Date(),
+      }]);
     } catch (e: any) {
       setMessages((prev) => prev.filter((m) => m.id !== typingId));
       setMessages((prev) => [
@@ -306,26 +444,17 @@ export function AITutor({
             (e && typeof e === "object" && "message" in e
               ? e.message
               : String(e)),
-          role: "assistant",
+          role: MessageRole.Assistant,
           timestamp: new Date(),
-          type: "system",
+          type: MessageType.System,
         },
       ]);
     }
   };
 
-  // Suggest questions to the user
-  const suggestedQuestions = [
-    "How do I play this scale?",
-    "What is the correct fingering?",
-    "What should I focus on?",
-  ];
-
   const handleSuggestedQuestion = (question: string) => {
-    setTextInput(question);
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
+    setValue('message', question, { shouldValidate: true, shouldDirty: true });
+    setFocus('message')
   };
 
   return (
@@ -345,13 +474,12 @@ export function AITutor({
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">Piano Tutor</span>
                     <div
-                      className={`h-2 w-2 rounded-full ${
-                        avatarState === "speaking"
-                          ? "bg-green-500 animate-pulse"
-                          : avatarState === "listening"
+                      className={`h-2 w-2 rounded-full ${avatarState === "speaking"
+                        ? "bg-green-500 animate-pulse"
+                        : avatarState === "listening"
                           ? "bg-blue-500 animate-pulse"
                           : "bg-muted"
-                      }`}
+                        }`}
                     />
                   </div>
                   <div className="flex gap-1">
@@ -444,96 +572,10 @@ export function AITutor({
                 </AnimatePresence>
 
                 {/* Chat messages */}
-                <ScrollArea className="h-60 pr-4 mb-3" ref={scrollAreaRef}>
+                <ScrollArea className="h-60 pr-4 mb-3">
                   <div className="space-y-3">
-                    {messages.map((message) => {
-                      let parsedContent = message.content;
-                      if (message.role === "assistant") {
-                        let json = formatStringToJSON(message.content);
-                        // Handle both {messages:[],emotion:""} and {messages:{messages:[],emotion:""}}
-                        if (json && typeof json === "object") {
-                          // Case 1: {messages:[], emotion:""}
-                          if (Array.isArray(json.messages) && typeof json.emotion === "string") {
-                            parsedContent =
-                              (json.emotion ? json.emotion + " " : "") +
-                              json.messages
-                                .map((m: any) =>
-                                  typeof m === "object" && m.value ? m.value : m
-                                )
-                                .join(" ");
-                          }
-                          // Case 2: {messages:{messages:[],emotion:""}}
-                          else if (
-                            json.messages &&
-                            typeof json.messages === "object" &&
-                            Array.isArray(json.messages.messages)
-                          ) {
-                            parsedContent =
-                              (json.messages.emotion ? json.messages.emotion + " " : "") +
-                              json.messages.messages
-                                .map((m: any) =>
-                                  typeof m === "object" && m.value ? m.value : m
-                                )
-                                .join(" ");
-                          }
-                        }
-                      }
-                      return (
-                        <div
-                          key={message.id}
-                          className={`flex ${
-                            message.role === "user"
-                              ? "justify-end"
-                              : "justify-start"
-                          }`}
-                        >
-                          <div className="flex items-start gap-2 max-w-[85%]">
-                            {message.role === "assistant" && (
-                              <Avatar className="h-6 w-6 mt-1">
-                                <AvatarImage
-                                  src="/ai-tutor-avatar.png"
-                                  alt="AI Tutor"
-                                />
-                                <AvatarFallback className="bg-primary/20 text-primary">
-                                  <Bot className="h-3 w-3" />
-                                </AvatarFallback>
-                              </Avatar>
-                            )}
-                            <div
-                              className={`rounded-lg p-2 text-sm ${
-                                message.role === "user"
-                                  ? "bg-primary text-primary-foreground"
-                                  : message.type === "system"
-                                  ? "bg-muted border border-primary/20"
-                                  : "bg-muted border border-border"
-                              }`}
-                            >
-                              {parsedContent}
-                              <div className="text-xs opacity-60 mt-1 flex items-center gap-1">
-                                {message.timestamp.toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                                {message.type === "voice" && (
-                                  <Mic className="h-2.5 w-2.5" />
-                                )}
-                              </div>
-                            </div>
-                            {message.role === "user" && (
-                              <Avatar className="h-6 w-6 mt-1">
-                                <AvatarImage
-                                  src="/placeholder.svg"
-                                  alt="User"
-                                />
-                                <AvatarFallback className="bg-primary/10">
-                                  U
-                                </AvatarFallback>
-                              </Avatar>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {messages.map((message) => <ChatMessage key={message.id} message={message} />)}
+                    <div ref={scrollAreaRef} />
                   </div>
                 </ScrollArea>
 
@@ -562,24 +604,28 @@ export function AITutor({
 
                 {/* Input area */}
                 <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }}
-                  className="flex items-center gap-2"
+                  onSubmit={handleSubmit(onSubmit)}
+                  className="flex items-center gap-2 w-full"
                 >
-                  <Input
-                    ref={inputRef}
-                    placeholder="Ask a question..."
-                    value={textInput}
-                    onChange={(e) => setTextInput(e.target.value)}
-                    className="flex-1 h-8 text-sm"
-                  />
+                  <div className="flex-1">
+                    <Controller
+                      name="message"
+                      control={control}
+                      render={({ field }) => (
+                        <Input
+                          control={control}
+                          placeholder="Ask a question..."
+                          {...field}
+                        />
+                      )}
+                    />
+                    {errors.message && (<span className="text-red-500 text-xs">{errors.message.message}</span>)}
+                  </div>
                   <Button
                     type="submit"
                     size="sm"
                     className="h-8 px-2"
-                    disabled={!textInput.trim()}
+                    disabled={!chatMessage.trim().length}
                   >
                     <Send className="h-3.5 w-3.5 mr-1" />
                     <span className="text-xs">Send</span>
@@ -605,7 +651,7 @@ export function AITutor({
               .reverse()
               .map(
                 (message, index) =>
-                  message.role === "assistant" && (
+                  message.role === MessageRole.Assistant && (
                     <motion.div
                       key={message.id}
                       className="bg-card/95 backdrop-blur-sm border border-primary/20 rounded-lg p-3 shadow-md"
@@ -675,15 +721,14 @@ export function AITutor({
 
         {/* Avatar Status Indicator */}
         <motion.div
-          className={`absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-background ${
-            avatarState === "speaking"
-              ? "bg-green-500"
-              : avatarState === "listening"
+          className={`absolute -top-1 -right-1 h-4 w-4 rounded-full border-2 border-background ${avatarState === "speaking"
+            ? "bg-green-500"
+            : avatarState === "listening"
               ? "bg-blue-500"
               : avatarState === "thinking"
-              ? "bg-amber-500"
-              : "bg-muted"
-          }`}
+                ? "bg-amber-500"
+                : "bg-muted"
+            }`}
           animate={
             avatarState === "speaking" || avatarState === "listening"
               ? { scale: [1, 1.2, 1], opacity: [1, 0.8, 1] }
