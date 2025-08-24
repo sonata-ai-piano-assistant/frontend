@@ -3,12 +3,12 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { useController, UseControllerProps } from "react-hook-form"
 
-type InputProps = React.ComponentProps<"input"> & UseControllerProps<any>
+type InputProps = React.ComponentPropsWithRef<"input"> & UseControllerProps<any>
 
 const Input = (props: InputProps) => {
   const { className, type, ref, name, control } = props
   const { field, fieldState } = useController({ name, control })
-  const { isTouched, invalid, isDirty } = fieldState;
+  const {invalid } = fieldState;
 
   return (
     <div>

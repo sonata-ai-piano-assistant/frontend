@@ -20,13 +20,8 @@ import { toast } from "sonner";
 import { VoiceWaveform } from "@/components/practice/voice-waveform";
 import { SimpleMidiListener } from "@/components/midi/simple-midi-listenner";
 import { useRouter } from "next/navigation";
-
-interface MidiNote {
-  note: number;
-  noteName: string;
-  velocity: number;
-  time: number;
-}
+import { useMidiStore } from "@/store/midi-store";
+import { MidiNote } from "@/types";
 
 export default function AIPracticePage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -53,22 +48,14 @@ export default function AIPracticePage() {
   const [userPerformances, setUserPerformances] = useState<any>([]);
   // For triggering a refresh after a new performance
   const [refreshKey, setRefreshKey] = useState(0);
- 
   const router = useRouter();
- 
-  // Handle MIDI data from the listener
-  const handleMidiData = (data: MidiNote[]) => {
-    setMidiData(data);
+  const { midiNotes, addMidiNote, clearMidiNotes } = useMidiStore();
 
-    // Provide feedback for the latest note
-    if (data.length > 0) {
-      const latestNote = data[0];
-      toast.success(`Played: ${latestNote.noteName}`, {
-        description: `Velocity: ${latestNote.velocity}`,
-        duration: 1000,
-      });
-    }
-  };
+  const clearMidiData = () => clearMidiNotes();
+  // Handle MIDI data from the listener
+  const handleMidiData = (data: MidiNote) => {
+    addMidiNote(data);
+  }
 
   // Call this function after a performance is sent to backend to refresh stats
   const refreshPerformances = () => setRefreshKey((k) => k + 1);
@@ -250,7 +237,7 @@ export default function AIPracticePage() {
       toast.success("Session ended successfully!");
       endSession(); // local cleanup
       router.push("/dashboard"); // Redirect to dashboard
-      
+
     } catch (e) {
       toast.error("Failed to end session");
     }
@@ -304,6 +291,7 @@ export default function AIPracticePage() {
           {/* Piano Keyboard */}
 
           <SimpleMidiListener
+            clearMidiData={clearMidiData}
             onMidiData={handleMidiData}
             onActiveNotes={handleActiveNotes}
             referenceId={referenceId}
@@ -311,6 +299,7 @@ export default function AIPracticePage() {
             sessionId={sessionId}
             section="intro"
             onPerformanceSent={refreshPerformances}
+            midiData={midiNotes}
           />
 
           {/* Stats Toggle Button */}
@@ -343,9 +332,9 @@ export default function AIPracticePage() {
                 transition={{ duration: 0.3 }}
                 className="overflow-hidden"
               >
-                <ProgressPanel data={userPerformances}  />
-          {/* Pass refreshPerformances to children if needed, e.g. to SimpleMidiListener or PracticeControls */}
-          {/* <SimpleMidiListener ... onPerformanceSent={refreshPerformances} /> */}
+                <ProgressPanel data={userPerformances} />
+                {/* Pass refreshPerformances to children if needed, e.g. to SimpleMidiListener or PracticeControls */}
+                {/* <SimpleMidiListener ... onPerformanceSent={refreshPerformances} /> */}
               </motion.div>
             )}
           </AnimatePresence>
