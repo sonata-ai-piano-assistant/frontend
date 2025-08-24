@@ -16,9 +16,9 @@ import { Bell } from "lucide-react"
 import Link from "next/link"
 
 export function UserNav() {
-  const {user} = useUser()
+  const {user, logout} = useUser()
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center justify-between gap-4">
       {/* <Button variant="ghost" size="icon" className="relative">
         <Bell className="h-5 w-5" />
         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
@@ -54,7 +54,9 @@ export function UserNav() {
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>Log out</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => logout()}>
+            Log out
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
