@@ -12,24 +12,37 @@ import { verifyUserCredentials } from "@/lib/api/user"
 import { useUser } from "@/context/UserContext"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { Controller, useForm } from "react-hook-form"
+import { z } from "zod"
+import { zodResolver } from "@hookform/resolvers/zod"
+
+interface LoginFormData {
+  email: string
+  password: string
+}
+const loginSchema = z.object({
+  email: z.string().email("⚠️ Invalid email address"),
+  password: z.string().min(6, "⚠️ Password must be between 6 and 100 characters").max(100),
+});
 
 export default function LoginPage() {
   const { login } = useUser();
-  const [form, setForm] = useState({
-    email: '',
-    password: ''
+  const { handleSubmit, control, formState: { errors } } = useForm<LoginFormData>({
+    defaultValues: {
+      email: '',
+      password: ''
+    },
+    resolver: zodResolver(loginSchema)
   })
+
   const [loading, setLoading] = useState(false)
   const router = useRouter();
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.id]: e.target.value })
-  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+
+  const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
     try {
-      const res = await verifyUserCredentials({ ...form });
+      const res = await verifyUserCredentials(data);
       login(res.token);
       toast.success('Connexion réussie !');
       // Rediriger si besoin
@@ -53,7 +66,7 @@ export default function LoginPage() {
           <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
           <CardDescription>Enter your credentials to sign in to your account</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
             <OAuthButtons />
             <div className="relative">
@@ -66,7 +79,14 @@ export default function LoginPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="m@example.com" value={form.email} onChange={handleChange} />
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => (
+                  <Input id="email" type="email" placeholder="m@example.com" control={control} {...field} />
+                )}
+              />
+              {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -75,7 +95,14 @@ export default function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <Input id="password" type="password" value={form.password} onChange={handleChange} />
+              <Controller
+                name="password"
+                control={control}
+                render={({ field }) => (
+                  <Input id="password" type="password" placeholder="password" control={control} {...field} />
+                )}
+              />
+              {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Signing in...' : 'Sign In'}

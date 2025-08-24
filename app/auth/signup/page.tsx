@@ -11,28 +11,54 @@ import { ArrowLeft } from "lucide-react"
 import { createUser } from "@/lib/api/user"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { Controller, useForm } from "react-hook-form"
+import { z } from "zod"
+import { zodResolver } from "@hookform/resolvers/zod"
+
+const signupSchema = z.object({
+  firstname: z.string().min(2, "⚠️ First name must be at least 2 characters").max(100, "⚠️ First name must be at most 100 characters"),
+  lastname: z.string().min(2, "⚠️ Last name must be at least 2 characters").max(100, "⚠️ Last name must be at most 100 characters"),
+  email: z.string().email("⚠️ Invalid email address"),
+  username: z.string().min(2, "⚠️ Username must be at least 2 characters").max(100, "⚠️ Username must be at most 100 characters"),
+  password: z.string().min(6, "⚠️ Password must be at least 6 characters").max(100, "⚠️ Password must be at most 100 characters"),
+
+});
+
+interface SignupFormData {
+  firstname: string
+  lastname: string
+  email: string
+  username: string
+  password: string
+  confirmPassword: string
+}
 
 export default function SignupPage() {
-  const [form, setForm] = useState({
-    firstname: '',
-    lastname: '',
-    email: '',
-    username: '',
-    password: '',
-    confirmPassword: ''
+  const { handleSubmit, control, formState: { errors } } = useForm<SignupFormData>({
+    defaultValues: {
+      firstname: '',
+      lastname: '',
+      email: '',
+      username: '',
+      password: '',
+      confirmPassword: ''
+    },
+    resolver: zodResolver(signupSchema.extend({
+      confirmPassword: z.string().min(6).max(100)
+    }).refine((data) => data.password === data.confirmPassword, {
+      message: "⚠️ Passwords don't match",
+      path: ["confirmPassword"]
+    }))
   })
+
   const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.id]: e.target.value })
-  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const onSubmit = async (data: SignupFormData) => {
     setLoading(true)
     try {
       // À adapter selon les champs backend attendus
-      await createUser({ ...form })
+      await createUser(data)
       toast.success('Compte créé avec succès !')
       // Rediriger ou vider le formulaire si besoin
       router.push('/auth/login')
@@ -55,7 +81,7 @@ export default function SignupPage() {
           <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
           <CardDescription>Enter your information to create an account</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
             <OAuthButtons />
             <div className="relative">
@@ -69,28 +95,70 @@ export default function SignupPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstname">First name</Label>
-                <Input id="firstname" placeholder="John" value={form.firstname} onChange={handleChange} />
+                <Controller
+                  name="firstname"
+                  control={control}
+                  render={({ field }) => (
+                    <Input control={control} id="firstname" placeholder="John" {...field} />
+                  )}
+                />
+                {errors.firstname && <p className="text-sm text-red-600">{errors.firstname.message}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="lastname">Last name</Label>
-                <Input id="lastname" placeholder="Doe" value={form.lastname} onChange={handleChange} />
+                <Controller
+                  name="lastname"
+                  control={control}
+                  render={({ field }) => (
+                    <Input control={control} id="lastname" placeholder="Doe" {...field} />
+                  )}
+                />
+                {errors.lastname && <p className="text-sm text-red-600">{errors.lastname.message}</p>}
               </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="m@example.com" value={form.email} onChange={handleChange} />
+              <Controller
+                name="email"
+                control={control}
+                render={({ field }) => (
+                  <Input control={control} id="email" type="email" placeholder="m@example.com" {...field} />
+                )}
+              />
+              {errors.email && <p className="text-sm text-red-600">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="username">Username</Label>
-              <Input id="username" type="username" placeholder="username" value={form.username} onChange={handleChange} />
+              <Controller
+                name="username"
+                control={control}
+                render={({ field }) => (
+                  <Input control={control} id="username" type="username" placeholder="username" {...field} />
+                )}
+              />
+              {errors.username && <p className="text-sm text-red-600">{errors.username.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="password" value={form.password} onChange={handleChange} />
+              <Controller
+                name="password"
+                control={control}
+                render={({ field }) => (
+                  <Input control={control} id="password" type="password" placeholder="password" {...field} />
+                )}
+              />
+              {errors.password && <p className="text-sm text-red-600">{errors.password.message}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" value={form.confirmPassword} onChange={handleChange} />
+              <Controller
+                name="confirmPassword"
+                control={control}
+                render={({ field }) => (
+                  <Input control={control} id="confirmPassword" type="password" placeholder="confirm password" {...field} />
+                )}
+              />
+              {errors.confirmPassword && <p className="text-sm text-red-600">{errors.confirmPassword.message}</p>}
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Creating...' : 'Create Account'}
