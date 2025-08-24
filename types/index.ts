@@ -16,6 +16,10 @@ export interface IUser {
 }
 
 export type MidiNote = { note: number; velocity: number; time: number; noteName?: string };
+export interface ILesson {
+  title: string;
+  description?: string;
+}
 
 export interface IPerformance {
   _id?: string;

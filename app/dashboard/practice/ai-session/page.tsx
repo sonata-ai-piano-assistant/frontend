@@ -21,17 +21,14 @@ import { VoiceWaveform } from "@/components/practice/voice-waveform";
 import { SimpleMidiListener } from "@/components/midi/simple-midi-listenner";
 import { useRouter } from "next/navigation";
 import { useMidiStore } from "@/store/midi-store";
-import { MidiNote } from "@/types";
+import { ILesson, MidiNote } from "@/types";
 
 export default function AIPracticePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentLesson, setCurrentLesson] = useState<{
-    title: string;
-    description?: string;
-  }>({
+  const [currentLesson, setCurrentLesson] = useState<ILesson>({
     title: "",
     description: "",
   });
@@ -42,14 +39,12 @@ export default function AIPracticePage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const { user } = useUser();
-  const [activeNotes, setActiveNotes] = useState<Record<number, boolean>>({});
-  const [midiData, setMidiData] = useState<MidiNote[]>([]);
   const [showMidiListener, setShowMidiListener] = useState(false);
   const [userPerformances, setUserPerformances] = useState<any>([]);
   // For triggering a refresh after a new performance
   const [refreshKey, setRefreshKey] = useState(0);
   const router = useRouter();
-  const { midiNotes, addMidiNote, clearMidiNotes } = useMidiStore();
+  const { midiNotes, addMidiNote, clearMidiNotes, activeNotes, setActiveNote, clearActiveNote } = useMidiStore();
 
   const clearMidiData = () => clearMidiNotes();
   // Handle MIDI data from the listener
@@ -84,11 +79,6 @@ export default function AIPracticePage() {
       description: `MIDI note: ${midiNote}`,
       duration: 1000,
     });
-  };
-
-  // Handle active notes from the listener
-  const handleActiveNotes = (notes: Record<number, boolean>) => {
-    setActiveNotes(notes);
   };
   // Initialisation : création session + thread AI
 
@@ -293,13 +283,15 @@ export default function AIPracticePage() {
           <SimpleMidiListener
             clearMidiData={clearMidiData}
             onMidiData={handleMidiData}
-            onActiveNotes={handleActiveNotes}
             referenceId={referenceId}
             userId={user?.id}
             sessionId={sessionId}
             section="intro"
             onPerformanceSent={refreshPerformances}
             midiData={midiNotes}
+            activeNote={activeNotes}
+            setActiveNotes={setActiveNote}
+            clearActiveNotes={clearActiveNote}
           />
 
           {/* Stats Toggle Button */}

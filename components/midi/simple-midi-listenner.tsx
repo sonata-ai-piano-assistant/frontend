@@ -24,24 +24,23 @@ import { MidiNote } from "@/types"
 interface SimpleMidiListenerProps {
   clearMidiData: () => void
   onMidiData: (data: MidiNote) => void
-  onActiveNotes: (notes: Record<number, boolean>) => void
   userId?: string
   sessionId: string | null
   referenceId: string | null // adapte le type si tu as un type Reference
   section?: "intro" | "verse" | "chorus" | "bridge" | "outro"
   onPerformanceSent?: () => void
   midiData: MidiNote[]
+  activeNote: Record<number, boolean>
+  setActiveNotes: (note: number) => void
+  clearActiveNotes: () => void
 }
 
 
 export function SimpleMidiListener(props: SimpleMidiListenerProps) {
-  const { onMidiData, onActiveNotes, userId, sessionId, referenceId, section = "intro", onPerformanceSent, midiData, clearMidiData } = props
-  const [activeNotes, setActiveNotes] = useState<Record<number, boolean>>({})
+  const { onMidiData, userId, sessionId, referenceId, section = "intro", onPerformanceSent, midiData, clearMidiData, activeNote, setActiveNotes, clearActiveNotes } = props
   const [connectionStatus, setConnectionStatus] = useState<string>("Initializing...")
   const [error, setError] = useState<string | null>(null)
   const [midiAccess, setMidiAccess] = useState<MIDIAccess | null>(null)
-  const lastNoteTimeRef = useRef<number>(0)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
   const isSendingRef = useRef(false)
 
   useEffect(() => {
@@ -110,17 +109,13 @@ export function SimpleMidiListener(props: SimpleMidiListenerProps) {
       const newNote = { note, noteName, velocity, time: Date.now() }
 
       onMidiData(newNote)
-      setActiveNotes((prev) => ({ ...prev, [note]: true }))
+      setActiveNotes(note);
 
       // --- Suppression du timer, déclenchement manuel par bouton ---
     }
     // Note Off event (command 128-143) or Note On with velocity 0
     else if ((command >= 128 && command <= 143) || (command >= 144 && command <= 159 && velocity === 0)) {
-      setActiveNotes((prev) => {
-        const newState = { ...prev }
-        delete newState[note]
-        return newState
-      })
+      clearActiveNotes();
     }
 
   }
@@ -213,10 +208,10 @@ export function SimpleMidiListener(props: SimpleMidiListenerProps) {
         <div>
           <h3 className="text-lg font-medium mb-3">Active Notes</h3>
           <div className="flex flex-wrap gap-1 mb-4 min-h-16 p-4 border rounded-md bg-muted/20">
-            {Object.keys(activeNotes).length === 0 ? (
+            {Object.keys(activeNote).length === 0 ? (
               <p className="text-muted-foreground text-sm">No active notes. Play your MIDI device...</p>
             ) : (
-              Object.keys(activeNotes).map((noteNumber) => {
+              Object.keys(activeNote).map((noteNumber) => {
                 const note = Number.parseInt(noteNumber)
                 return (
                   <Badge
@@ -239,7 +234,7 @@ export function SimpleMidiListener(props: SimpleMidiListenerProps) {
               {pianoKeys.map((note) => {
                 const noteName = getNoteName(note)
                 const isBlackKey = noteName.includes("#")
-                const isActive = activeNotes[note]
+                const isActive = activeNote[note]
                 return (
                   <div
                     key={note}
