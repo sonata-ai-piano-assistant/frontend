@@ -207,7 +207,7 @@ export function AITutor(props: AITutorProps) {
   } = props;
   const [messages, setMessages] = useState<Message[]>([]);
   const [currentMessage, setCurrentMessage] = useState("");
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [muted, setMuted] = useState(true);
   const [avatarState, setAvatarState] = useState<
@@ -253,7 +253,6 @@ export function AITutor(props: AITutorProps) {
 
     try {
       const data = await getThreadById(threadId);
-      console.log("Thread messages data:", data);
 
       // OpenAI-style message objects with content.text.value
       setMessages(
@@ -667,10 +666,6 @@ export function AITutor(props: AITutorProps) {
                     >
                       <div className="flex items-start gap-2">
                         <Avatar className="h-6 w-6 mt-0.5">
-                          <AvatarImage
-                            src="/ai-tutor-avatar.png"
-                            alt="AI Tutor"
-                          />
                           <AvatarFallback className="bg-primary/20 text-primary">
                             <Bot className="h-3 w-3" />
                           </AvatarFallback>
@@ -713,7 +708,6 @@ export function AITutor(props: AITutorProps) {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <Avatar className="h-14 w-14 border-2 border-primary shadow-lg cursor-pointer">
-          <AvatarImage src="/ai-tutor-avatar.png" alt="AI Tutor" />
           <AvatarFallback className="bg-primary text-primary-foreground">
             <Bot className="h-6 w-6" />
           </AvatarFallback>
