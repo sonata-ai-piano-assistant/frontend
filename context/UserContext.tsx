@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { getUserFromToken } from '../lib/api/user';
 import { IUser } from '../types';
+import { useRouter } from 'next/navigation';
 interface UserContextType {
   user: IUser | null;
   token: string | null;
@@ -16,6 +17,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<IUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -47,6 +49,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    router.push('/auth/login');
   };
 
   return (

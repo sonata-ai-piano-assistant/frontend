@@ -15,7 +15,11 @@ export interface IUser {
   isPhoneVerified: boolean;
 }
 
-export type MidiNote = { note: number; velocity: number; time: number };
+export type MidiNote = { note: number; velocity: number; time: number; noteName?: string };
+export interface ILesson {
+  title: string;
+  description?: string;
+}
 
 export interface IPerformance {
   _id?: string;
