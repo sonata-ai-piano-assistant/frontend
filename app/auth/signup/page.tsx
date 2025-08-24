@@ -10,17 +10,19 @@ import { OAuthButtons } from "@/components/auth/oauth-buttons"
 import { ArrowLeft } from "lucide-react"
 import { createUser } from "@/lib/api/user"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 export default function SignupPage() {
   const [form, setForm] = useState({
-    firstName: '',
-    lastName: '',
+    firstname: '',
+    lastname: '',
     email: '',
+    username: '',
     password: '',
     confirmPassword: ''
   })
   const [loading, setLoading] = useState(false)
-
+  const router = useRouter()
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.id]: e.target.value })
   }
@@ -33,6 +35,7 @@ export default function SignupPage() {
       await createUser({ ...form })
       toast.success('Compte créé avec succès !')
       // Rediriger ou vider le formulaire si besoin
+      router.push('/auth/login')
     } catch (error: any) {
       toast.error(error?.message || 'Erreur lors de la création du compte.')
     } finally {
@@ -65,12 +68,12 @@ export default function SignupPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First name</Label>
-                <Input id="firstName" placeholder="John" value={form.firstName} onChange={handleChange} />
+                <Label htmlFor="firstname">First name</Label>
+                <Input id="firstname" placeholder="John" value={form.firstname} onChange={handleChange} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last name</Label>
-                <Input id="lastName" placeholder="Doe" value={form.lastName} onChange={handleChange} />
+                <Label htmlFor="lastname">Last name</Label>
+                <Input id="lastname" placeholder="Doe" value={form.lastname} onChange={handleChange} />
               </div>
             </div>
             <div className="space-y-2">
@@ -78,8 +81,12 @@ export default function SignupPage() {
               <Input id="email" type="email" placeholder="m@example.com" value={form.email} onChange={handleChange} />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input id="username" type="username" placeholder="username" value={form.username} onChange={handleChange} />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" value={form.password} onChange={handleChange} />
+              <Input id="password" type="password" placeholder="password" value={form.password} onChange={handleChange} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>

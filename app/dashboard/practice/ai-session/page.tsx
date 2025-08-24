@@ -114,34 +114,8 @@ export default function AIPracticePage() {
   };
   useEffect(() => {
     if (!user) return;
-    const existingSessionId = localStorage.getItem("practiceSessionId");
-    const existingThreadId = localStorage.getItem("practiceThreadId");
-    const existingReferenceId = localStorage.getItem("practiceReferenceId");
-    if (existingSessionId && existingThreadId && existingReferenceId) {
-      setSessionId(existingSessionId);
-      setThreadId(existingThreadId);
-      setReferenceId(existingReferenceId);
-      // Charger le nom de la partition (reference)
-      getReferenceById(existingReferenceId)
-        .then((ref) => {
-          setCurrentLesson({
-            title: ref.name,
-            description:
-              "Practice and get instant AI feedback. Ask the AI any question about the piece!",
-          });
-        })
-        .catch(() =>
-          setCurrentLesson({ title: "Unknown Piece", description: "" })
-        );
 
-      getUserSessionPerformances(existingSessionId, user.id).then((userPerf) => {
-        setUserPerformances(userPerf);
-        setIsLoading(false);
-      });
-      return;
-    }
-
-    (async () => {
+    const initializeSession = async () => {
       try {
         const session = await createPracticeSession({ userId: user.id });
         setSessionId(session._id);
@@ -173,7 +147,37 @@ export default function AIPracticePage() {
         // eslint-disable-next-line no-console
         console.error("Erreur création session/thread:", e);
       }
-    })();
+    }
+
+    const existingSessionId = localStorage.getItem("practiceSessionId");
+    const existingThreadId = localStorage.getItem("practiceThreadId");
+    const existingReferenceId = localStorage.getItem("practiceReferenceId");
+    if (existingSessionId && existingThreadId && existingReferenceId) {
+      setSessionId(existingSessionId);
+      setThreadId(existingThreadId);
+      setReferenceId(existingReferenceId);
+      // Charger le nom de la partition (reference)
+      getReferenceById(existingReferenceId)
+        .then((ref) => {
+          setCurrentLesson({
+            title: ref.name,
+            description:
+              "Practice and get instant AI feedback. Ask the AI any question about the piece!",
+          });
+        })
+        .catch(() =>
+          setCurrentLesson({ title: "Unknown Piece", description: "" })
+        );
+
+      getUserSessionPerformances(existingSessionId, user.id).then((userPerf) => {
+        setUserPerformances(userPerf);
+        setIsLoading(false);
+      });
+      return;
+    } else {
+      initializeSession();
+    }
+
     if (typeof window !== "undefined") {
       audioContextRef.current = new (window.AudioContext ||
         (window as any).webkitAudioContext)();

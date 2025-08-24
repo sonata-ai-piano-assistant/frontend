@@ -192,7 +192,7 @@ export default function DashboardPage() {
             </CardContent>
             <div className="p-6 pt-0 mt-auto">
               <Button asChild>
-                <Link href="/practice/ai-session">
+                <Link href="/dashboard/practice/ai-session">
                   Start Session <PlayCircle className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
