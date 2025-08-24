@@ -15,39 +15,32 @@ const getNoteName = (noteNumber: number): string => {
   return `${noteName}${octave}`
 }
 
-// Interface for MIDI note data
-interface MidiNote {
-  note: number
-  noteName: string
-  velocity: number
-  time: number
-}
-
-
 import { useRef } from "react"
 import { createPerformance } from "@/lib/api/performance"
 import { analyzePerformance } from "@/lib/api/analyze"
 import { getReferenceById } from "@/lib/api/reference"
+import { MidiNote } from "@/types"
 
 interface SimpleMidiListenerProps {
-  onMidiData?: (data: MidiNote[]) => void
-  onActiveNotes?: (notes: Record<number, boolean>) => void
+  clearMidiData: () => void
+  onMidiData: (data: MidiNote) => void
   userId?: string
-  sessionId: string| null
-  referenceId: string| null // adapte le type si tu as un type Reference
+  sessionId: string | null
+  referenceId: string | null // adapte le type si tu as un type Reference
   section?: "intro" | "verse" | "chorus" | "bridge" | "outro"
   onPerformanceSent?: () => void
+  midiData: MidiNote[]
+  activeNote: Record<number, boolean>
+  setActiveNotes: (note: number) => void
+  clearActiveNotes: () => void
 }
 
 
-export function SimpleMidiListener({ onMidiData, onActiveNotes, userId, sessionId, referenceId, section = "intro", onPerformanceSent }: SimpleMidiListenerProps) {
-  const [midiData, setMidiData] = useState<MidiNote[]>([])
-  const [activeNotes, setActiveNotes] = useState<Record<number, boolean>>({})
+export function SimpleMidiListener(props: SimpleMidiListenerProps) {
+  const { onMidiData, userId, sessionId, referenceId, section = "intro", onPerformanceSent, midiData, clearMidiData, activeNote, setActiveNotes, clearActiveNotes } = props
   const [connectionStatus, setConnectionStatus] = useState<string>("Initializing...")
   const [error, setError] = useState<string | null>(null)
   const [midiAccess, setMidiAccess] = useState<MIDIAccess | null>(null)
-  const lastNoteTimeRef = useRef<number>(0)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
   const isSendingRef = useRef(false)
 
   useEffect(() => {
@@ -58,26 +51,28 @@ export function SimpleMidiListener({ onMidiData, onActiveNotes, userId, sessionI
       return
     }
 
-    navigator
-      .requestMIDIAccess()
-      .then((access) => {
-        setMidiAccess(access)
-        // Setup MIDI device connection listener
-        access.addEventListener("statechange", handleStateChange)
-        // Initial connection check
-        const inputs = Array.from(access.inputs.values())
-        if (inputs.length === 0) {
-          setConnectionStatus("No MIDI devices found")
-        } else {
-          setConnectionStatus(`Connected to ${inputs.length} MIDI device(s)`)
-          setupMidiListeners(access)
-        }
-      })
-      .catch((err) => {
-        console.error("MIDI Access Error:", err)
-        setError(`Failed to access MIDI devices: ${err.message}`)
-        setConnectionStatus("Connection failed")
-      })
+    if (!midiAccess) {
+      navigator
+        .requestMIDIAccess()
+        .then((access) => {
+          setMidiAccess(access)
+          // Setup MIDI device connection listener
+          access.addEventListener("statechange", handleStateChange)
+          // Initial connection check
+          const inputs = Array.from(access.inputs.values())
+          if (inputs.length === 0) {
+            setConnectionStatus("No MIDI devices found")
+          } else {
+            setConnectionStatus(`Connected to ${inputs.length} MIDI device(s)`)
+            setupMidiListeners(access)
+          }
+        })
+        .catch((err) => {
+          console.error("MIDI Access Error:", err)
+          setError(`Failed to access MIDI devices: ${err.message}`)
+          setConnectionStatus("Connection failed")
+        })
+    }
 
     return () => {
       if (midiAccess) {
@@ -113,69 +108,55 @@ export function SimpleMidiListener({ onMidiData, onActiveNotes, userId, sessionI
       const noteName = getNoteName(note)
       const newNote = { note, noteName, velocity, time: Date.now() }
 
-      setMidiData((prev) => [newNote, ...prev.slice(0, 99)])
-      setActiveNotes((prev) => ({ ...prev, [note]: true }))
+      onMidiData(newNote)
+      setActiveNotes(note);
 
       // --- Suppression du timer, déclenchement manuel par bouton ---
     }
     // Note Off event (command 128-143) or Note On with velocity 0
     else if ((command >= 128 && command <= 143) || (command >= 144 && command <= 159 && velocity === 0)) {
-      setActiveNotes((prev) => {
-        const newState = { ...prev }
-        delete newState[note]
-        return newState
-      })
+      clearActiveNotes();
     }
 
-}
-// --- Fonction pour envoyer la performance à l’API et à l’IA ---
-const sendPerformance = async () => {
-  if (isSendingRef.current) return;
-  if (!userId || !sessionId || !referenceId || midiData.length === 0) return;
-  isSendingRef.current = true;
-  try {
-    const notesChrono = [...midiData].reverse();
-    const startedAt = notesChrono[0]?.time;
-    const endedAt = notesChrono[notesChrono.length - 1]?.time;
-    const perf = await createPerformance({
-      user: userId,
-      session: sessionId,
-      midiNotes: notesChrono.map(({ note, velocity, time }) => ({ note, velocity, time })),
-      startedAt: new Date(startedAt),
-      endedAt: new Date(endedAt),
-      section: section || "intro",
-    });
-    console.log("Performance created:", perf);
-    const reference = await getReferenceById(referenceId);
-    console.log("Reference data:", reference);
-    await analyzePerformance({ performance: perf, reference });
-    console.log("Performance analyzed successfully");
-    setMidiData([]);
-    if (onPerformanceSent) onPerformanceSent();
-  } catch (e) {
-    console.error("Failed to send performance or analyze:", e);
-  } finally {
-    isSendingRef.current = false;
   }
-};
-
-  const clearMidiData = () => {
-    setMidiData([])
-    onMidiData?.([])
-  }
+  // --- Fonction pour envoyer la performance à l’API et à l’IA ---
+  const sendPerformance = async () => {
+    if (isSendingRef.current) return;
+    if (!userId || !sessionId || !referenceId || midiData.length === 0) return;
+    isSendingRef.current = true;
+    try {
+      const notesChrono = [...midiData].reverse();
+      const startedAt = notesChrono[0]?.time;
+      const endedAt = notesChrono[notesChrono.length - 1]?.time;
+      const perf = await createPerformance({
+        user: userId,
+        session: sessionId,
+        midiNotes: notesChrono.map(({ note, velocity, time }) => ({ note, velocity, time })),
+        startedAt: new Date(startedAt),
+        endedAt: new Date(endedAt),
+        section: section || "intro",
+      });
+      console.log("Performance created:", perf);
+      const reference = await getReferenceById(referenceId);
+      console.log("Reference data:", reference);
+      await analyzePerformance({ performance: perf, reference });
+      console.log("Performance analyzed successfully");
+      clearMidiData()
+      if (onPerformanceSent) onPerformanceSent();
+    } catch (e) {
+      console.error("Failed to send performance or analyze:", e);
+    } finally {
+      isSendingRef.current = false;
+    }
+  };
 
   // Create an array of all possible piano keys for visualization
   const pianoKeys = Array.from({ length: 88 }, (_, i) => i + 21) // MIDI notes 21-108 (standard 88-key piano)
 
-  // Appelle onMidiData quand midiData change
-  useEffect(() => {
-    if (onMidiData) onMidiData(midiData)
-  }, [midiData, onMidiData])
-
   // Appelle onActiveNotes quand activeNotes change
-  useEffect(() => {
-    if (onActiveNotes) onActiveNotes(activeNotes)
-  }, [activeNotes, onActiveNotes])
+  // useEffect(() => {
+  //   onActiveNotes(activeNotes)
+  // }, [activeNotes])
 
   return (
     <Card className="shadow-lg">
@@ -227,10 +208,10 @@ const sendPerformance = async () => {
         <div>
           <h3 className="text-lg font-medium mb-3">Active Notes</h3>
           <div className="flex flex-wrap gap-1 mb-4 min-h-16 p-4 border rounded-md bg-muted/20">
-            {Object.keys(activeNotes).length === 0 ? (
+            {Object.keys(activeNote).length === 0 ? (
               <p className="text-muted-foreground text-sm">No active notes. Play your MIDI device...</p>
             ) : (
-              Object.keys(activeNotes).map((noteNumber) => {
+              Object.keys(activeNote).map((noteNumber) => {
                 const note = Number.parseInt(noteNumber)
                 return (
                   <Badge
@@ -253,12 +234,12 @@ const sendPerformance = async () => {
               {pianoKeys.map((note) => {
                 const noteName = getNoteName(note)
                 const isBlackKey = noteName.includes("#")
-                const isActive = activeNotes[note]
+                const isActive = activeNote[note]
                 return (
                   <div
                     key={note}
                     className={`
-                      ${isBlackKey 
+                      ${isBlackKey
                         ? `h-12 w-6 -mx-3 z-10 relative text-white ${isActive ? "bg-primary" : "bg-black"}`
                         : `h-20 w-8  border border-gray-300 ${isActive ? "bg-primary/20" : "bg-white"}`
                       }
@@ -304,7 +285,7 @@ const sendPerformance = async () => {
                   </thead>
                   <tbody>
                     {midiData.map((entry, index) => {
-                      const time = new Date(entry.time)
+                      const time = entry?.time ? new Date(entry.time) : new Date();
                       const timeString = time.toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",

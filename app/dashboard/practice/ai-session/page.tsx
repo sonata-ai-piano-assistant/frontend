@@ -20,23 +20,15 @@ import { toast } from "sonner";
 import { VoiceWaveform } from "@/components/practice/voice-waveform";
 import { SimpleMidiListener } from "@/components/midi/simple-midi-listenner";
 import { useRouter } from "next/navigation";
-
-interface MidiNote {
-  note: number;
-  noteName: string;
-  velocity: number;
-  time: number;
-}
+import { useMidiStore } from "@/store/midi-store";
+import { ILesson, MidiNote } from "@/types";
 
 export default function AIPracticePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isListening, setIsListening] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentLesson, setCurrentLesson] = useState<{
-    title: string;
-    description?: string;
-  }>({
+  const [currentLesson, setCurrentLesson] = useState<ILesson>({
     title: "",
     description: "",
   });
@@ -47,28 +39,18 @@ export default function AIPracticePage() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
   const { user } = useUser();
-  const [activeNotes, setActiveNotes] = useState<Record<number, boolean>>({});
-  const [midiData, setMidiData] = useState<MidiNote[]>([]);
   const [showMidiListener, setShowMidiListener] = useState(false);
   const [userPerformances, setUserPerformances] = useState<any>([]);
   // For triggering a refresh after a new performance
   const [refreshKey, setRefreshKey] = useState(0);
- 
   const router = useRouter();
- 
-  // Handle MIDI data from the listener
-  const handleMidiData = (data: MidiNote[]) => {
-    setMidiData(data);
+  const { midiNotes, addMidiNote, clearMidiNotes, activeNotes, setActiveNote, clearActiveNote } = useMidiStore();
 
-    // Provide feedback for the latest note
-    if (data.length > 0) {
-      const latestNote = data[0];
-      toast.success(`Played: ${latestNote.noteName}`, {
-        description: `Velocity: ${latestNote.velocity}`,
-        duration: 1000,
-      });
-    }
-  };
+  const clearMidiData = () => clearMidiNotes();
+  // Handle MIDI data from the listener
+  const handleMidiData = (data: MidiNote) => {
+    addMidiNote(data);
+  }
 
   // Call this function after a performance is sent to backend to refresh stats
   const refreshPerformances = () => setRefreshKey((k) => k + 1);
@@ -97,11 +79,6 @@ export default function AIPracticePage() {
       description: `MIDI note: ${midiNote}`,
       duration: 1000,
     });
-  };
-
-  // Handle active notes from the listener
-  const handleActiveNotes = (notes: Record<number, boolean>) => {
-    setActiveNotes(notes);
   };
   // Initialisation : création session + thread AI
 
@@ -250,7 +227,7 @@ export default function AIPracticePage() {
       toast.success("Session ended successfully!");
       endSession(); // local cleanup
       router.push("/dashboard"); // Redirect to dashboard
-      
+
     } catch (e) {
       toast.error("Failed to end session");
     }
@@ -304,13 +281,17 @@ export default function AIPracticePage() {
           {/* Piano Keyboard */}
 
           <SimpleMidiListener
+            clearMidiData={clearMidiData}
             onMidiData={handleMidiData}
-            onActiveNotes={handleActiveNotes}
             referenceId={referenceId}
             userId={user?.id}
             sessionId={sessionId}
             section="intro"
             onPerformanceSent={refreshPerformances}
+            midiData={midiNotes}
+            activeNote={activeNotes}
+            setActiveNotes={setActiveNote}
+            clearActiveNotes={clearActiveNote}
           />
 
           {/* Stats Toggle Button */}
@@ -343,9 +324,9 @@ export default function AIPracticePage() {
                 transition={{ duration: 0.3 }}
                 className="overflow-hidden"
               >
-                <ProgressPanel data={userPerformances}  />
-          {/* Pass refreshPerformances to children if needed, e.g. to SimpleMidiListener or PracticeControls */}
-          {/* <SimpleMidiListener ... onPerformanceSent={refreshPerformances} /> */}
+                <ProgressPanel data={userPerformances} />
+                {/* Pass refreshPerformances to children if needed, e.g. to SimpleMidiListener or PracticeControls */}
+                {/* <SimpleMidiListener ... onPerformanceSent={refreshPerformances} /> */}
               </motion.div>
             )}
           </AnimatePresence>

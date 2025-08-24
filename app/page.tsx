@@ -8,10 +8,10 @@ export default function Home() {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
+          <Link href={"/"} className="flex items-center gap-2">
             <Music className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold">SonataAI</span>
-          </div>
+          </Link>
           <nav className="flex items-center gap-4">
             <Link href="/auth/login" className="text-sm font-medium text-muted-foreground hover:text-foreground">
               Login
