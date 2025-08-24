@@ -16,7 +16,11 @@ import { Bell } from "lucide-react"
 import Link from "next/link"
 
 export function UserNav() {
-  const {user, logout} = useUser()
+  const { user, logout } = useUser()
+  const logoName =
+    (user?.firstname ? user.firstname.toUpperCase().charAt(0) : "") +
+    (user?.lastname ? user.lastname.toUpperCase().charAt(0) : "")
+
   return (
     <div className="flex items-center justify-between gap-4">
       {/* <Button variant="ghost" size="icon" className="relative">
@@ -29,8 +33,8 @@ export function UserNav() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-8 w-8 rounded-full">
             <Avatar className="h-8 w-8">
-              <AvatarImage src="/placeholder.svg" alt="User" />
-              <AvatarFallback>SC</AvatarFallback>
+              {/* <AvatarImage src="/placeholder.svg" alt="User" /> */}
+              <AvatarFallback>{logoName}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
