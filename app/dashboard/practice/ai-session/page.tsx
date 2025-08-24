@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { getReferenceById } from "@/lib/api/reference";
 import { useUser } from "@/context/UserContext";
+import { Midi } from "@tonejs/midi";
 import {
   createPracticeSession,
   getUserSessionPerformances,
@@ -22,6 +23,8 @@ import { SimpleMidiListener } from "@/components/midi/simple-midi-listenner";
 import { useRouter } from "next/navigation";
 import { useMidiStore } from "@/store/midi-store";
 import { ILesson, MidiNote } from "@/types";
+import { fetchMidiFileBySongName } from "@/lib/api/music";
+import { CustomMidiPlayer } from "@/components/midi/midi-player";
 
 export default function AIPracticePage() {
   const [isLoading, setIsLoading] = useState(true);
@@ -38,49 +41,31 @@ export default function AIPracticePage() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
+  const [musicBlob, setMusicBlob] = useState<Blob | null>(null);
   const { user } = useUser();
   const [showMidiListener, setShowMidiListener] = useState(false);
   const [userPerformances, setUserPerformances] = useState<any>([]);
+  const [midiSong,setMidiSong]= useState<Midi|null>(null);
   // For triggering a refresh after a new performance
   const [refreshKey, setRefreshKey] = useState(0);
   const router = useRouter();
-  const { midiNotes, addMidiNote, clearMidiNotes, activeNotes, setActiveNote, clearActiveNote } = useMidiStore();
+  const {
+    midiNotes,
+    addMidiNote,
+    clearMidiNotes,
+    activeNotes,
+    setActiveNote,
+    clearActiveNote,
+  } = useMidiStore();
 
   const clearMidiData = () => clearMidiNotes();
   // Handle MIDI data from the listener
   const handleMidiData = (data: MidiNote) => {
     addMidiNote(data);
-  }
+  };
 
   // Call this function after a performance is sent to backend to refresh stats
   const refreshPerformances = () => setRefreshKey((k) => k + 1);
-
-  // Handle note clicks from the piano keyboard
-  const handleNoteClick = (midiNote: number) => {
-    // Convert MIDI note to note name
-    const noteNames = [
-      "C",
-      "C#",
-      "D",
-      "D#",
-      "E",
-      "F",
-      "F#",
-      "G",
-      "G#",
-      "A",
-      "A#",
-      "B",
-    ];
-    const octave = Math.floor(midiNote / 12) - 1;
-    const noteName = noteNames[midiNote % 12] + octave;
-
-    toast.info(`Clicked: ${noteName}`, {
-      description: `MIDI note: ${midiNote}`,
-      duration: 1000,
-    });
-  };
-  // Initialisation : création session + thread AI
 
   // Fonctions de contrôle de la pratique
   const endSession = () => {
@@ -89,6 +74,11 @@ export default function AIPracticePage() {
     localStorage.removeItem("practiceSessionId");
     localStorage.removeItem("practiceThreadId");
   };
+  
+  const setupMidi = async (blob: Blob) => {
+    const initMidi = new Midi(await blob.arrayBuffer());
+    setMidiSong(initMidi);
+};
   useEffect(() => {
     if (!user) return;
 
@@ -106,13 +96,15 @@ export default function AIPracticePage() {
         // Charger le nom de la partition (reference)
         if (session.reference) {
           getReferenceById(session.reference)
-            .then((ref) =>
+            .then(async (ref) => {
               setCurrentLesson({
                 title: ref.name,
                 description:
                   "Practice and get instant AI feedback. Ask the AI any question about the piece!",
-              })
-            )
+              });
+              const midiBlob = await fetchMidiFileBySongName(ref.name);
+              setupMidi(midiBlob);
+            })
             .catch(() =>
               setCurrentLesson({ title: "Unknown Piece", description: "" })
             );
@@ -124,7 +116,7 @@ export default function AIPracticePage() {
         // eslint-disable-next-line no-console
         console.error("Erreur création session/thread:", e);
       }
-    }
+    };
 
     const existingSessionId = localStorage.getItem("practiceSessionId");
     const existingThreadId = localStorage.getItem("practiceThreadId");
@@ -135,21 +127,25 @@ export default function AIPracticePage() {
       setReferenceId(existingReferenceId);
       // Charger le nom de la partition (reference)
       getReferenceById(existingReferenceId)
-        .then((ref) => {
+        .then(async (ref) => {
           setCurrentLesson({
             title: ref.name,
             description:
               "Practice and get instant AI feedback. Ask the AI any question about the piece!",
           });
+          const midiBlob = await fetchMidiFileBySongName(ref.name);
+          setupMidi(midiBlob);
         })
-        .catch(() =>
-          setCurrentLesson({ title: "Unknown Piece", description: "" })
-        );
+        .catch((err) => {
+          setCurrentLesson({ title: "Unknown Piece", description: "" });
+        });
 
-      getUserSessionPerformances(existingSessionId, user.id).then((userPerf) => {
-        setUserPerformances(userPerf);
-        setIsLoading(false);
-      });
+      getUserSessionPerformances(existingSessionId, user.id).then(
+        (userPerf) => {
+          setUserPerformances(userPerf);
+          setIsLoading(false);
+        }
+      );
       return;
     } else {
       initializeSession();
@@ -205,20 +201,6 @@ export default function AIPracticePage() {
     }
   };
 
-  // Start practice session
-  const startPractice = () => {
-    setIsPlaying(true);
-    toast.success("Practice session started", {
-      description: "Play along with the highlighted notes on the keyboard.",
-    });
-  };
-  const endPractice = () => {
-    setIsPlaying(false);
-    toast.info("Practice session paused", {
-      description: "You can resume anytime or end the session.",
-    });
-  };
-
   // End session and call backend
   const handleEndSession = async () => {
     if (!sessionId) return;
@@ -227,7 +209,6 @@ export default function AIPracticePage() {
       toast.success("Session ended successfully!");
       endSession(); // local cleanup
       router.push("/dashboard"); // Redirect to dashboard
-
     } catch (e) {
       toast.error("Failed to end session");
     }
@@ -259,24 +240,17 @@ export default function AIPracticePage() {
                 </p>
               )}
             </div>
-            <Button variant="destructive" onClick={handleEndSession} disabled={!sessionId}>
+            <Button
+              variant="destructive"
+              onClick={handleEndSession}
+              disabled={!sessionId}
+            >
               End Session
             </Button>
           </div>
 
-          {/* Voice Waveform - Only shown when listening */}
-          <AnimatePresence>
-            {isListening && (
-              <motion.div
-                className="absolute top-24 right-4 z-10"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-              >
-                <VoiceWaveform analyser={analyserRef.current} />
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/*Custom Midi player */}
+          <CustomMidiPlayer midi={midiSong} />
 
           {/* Piano Keyboard */}
 
