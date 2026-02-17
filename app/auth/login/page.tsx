@@ -22,7 +22,11 @@ import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const { login } = useUser();
-  const [form, setForm] = useState({
+  type LoginFormData = {
+    identifier: string;
+    password: string;
+  };
+  const [form, setForm] = useState<LoginFormData>({
     identifier: "",
     password: "",
   });
@@ -64,7 +68,10 @@ export default function LoginPage() {
             Enter your credentials to sign in to your account
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(form);
+        }}>
           <CardContent className="space-y-4">
             <OAuthButtons />
             <div className="relative">
@@ -100,6 +107,7 @@ export default function LoginPage() {
                 </Link>
               </div>
               <Input
+              name="password"
                 id="password"
                 type="password"
                 value={form.password}
