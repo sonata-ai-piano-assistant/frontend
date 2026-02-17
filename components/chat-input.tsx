@@ -100,7 +100,7 @@ export function ChatInput({ onSendMessage, placeholder = "Poser une question", d
 
   return (
     <div className="flex items-center gap-2 w-full max-w-4xl mx-auto p-2 bg-background border rounded-lg shadow-sm">
-      <Input
+      <input
         ref={inputRef}
         value={message}
         onChange={(e) => setMessage(e.target.value)}

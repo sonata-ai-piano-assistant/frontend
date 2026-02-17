@@ -524,7 +524,7 @@ export function AIChatPanel() {
           className="flex items-center gap-2"
           aria-label="Message input form"
         >
-          <Input
+          <input
             placeholder={`Ask your ${tutorStyle} AI tutor about ${focusArea}...`}
             value={input}
             onChange={(e) => setInput(e.target.value)}

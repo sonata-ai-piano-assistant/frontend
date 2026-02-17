@@ -10,7 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
@@ -86,7 +85,7 @@ export default function LoginPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="identifier">Email</Label>
-              <Input
+              <input
                 id="identifier"
                 name="identifier"
                 type="email"
@@ -94,6 +93,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={form.identifier}
                 onChange={handleChange}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3"
               />
             </div>
             <div className="space-y-2">
@@ -106,12 +106,13 @@ export default function LoginPage() {
                   Forgot password?
                 </Link>
               </div>
-              <Input
+              <input
               name="password"
                 id="password"
                 type="password"
                 value={form.password}
                 onChange={handleChange}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3"
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>

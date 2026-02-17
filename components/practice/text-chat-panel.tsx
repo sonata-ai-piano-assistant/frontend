@@ -247,7 +247,7 @@ export function TextChatPanel({ onClose }: TextChatPanelProps) {
               }}
               className="flex items-center gap-2"
             >
-              <Input
+              <input
                 ref={inputRef}
                 placeholder="Ask your piano tutor..."
                 value={input}
