@@ -21,6 +21,7 @@ export interface SendAIMessageRequest {
 export interface SendAIMessageResponse {
   response: {
     messages: string[];
+    emotion: string;
   };
 }
 // Envoyer un message à l'IA et obtenir une réponse

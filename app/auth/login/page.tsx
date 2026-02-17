@@ -32,11 +32,10 @@ export default function LoginPage() {
     setForm({ ...form, [e.target.id]: e.target.value });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (data: LoginFormData) => {
     setLoading(true);
     try {
-      const res = await verifyUserCredentials({ ...form });
+      const res = await verifyUserCredentials(data);
       login(res.token);
       toast.success("Connexion réussie !");
       // Rediriger si besoin
@@ -65,7 +64,7 @@ export default function LoginPage() {
             Enter your credentials to sign in to your account
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
             <OAuthButtons />
             <div className="relative">
@@ -82,6 +81,7 @@ export default function LoginPage() {
               <Label htmlFor="identifier">Email</Label>
               <Input
                 id="identifier"
+                name="identifier"
                 type="email"
                 placeholder="m@example.com"
                 autoComplete="email"
