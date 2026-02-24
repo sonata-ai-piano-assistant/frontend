@@ -49,6 +49,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setToken(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem("practiceSessionId");
+    localStorage.removeItem("practiceReferenceId");
+    localStorage.removeItem("practiceThreadId");
     router.push('/auth/login');
   };
 
