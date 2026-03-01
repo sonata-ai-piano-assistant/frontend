@@ -97,6 +97,8 @@ const formatAiResponse = (msg: any) => {
   } else if (typeof msg.content === "string") {
     content = msg.content;
   }
+  // Strip [context: ...] prefix from user messages fetched from backend
+  content = content.replace(/^\[context:.*?\]\s*/s, "");
   return {
     id: msg.id,
     content,
@@ -105,41 +107,33 @@ const formatAiResponse = (msg: any) => {
     type: msg.type || MessageType.Text,
   };
 }
+function parseMessageContent(content: string, role: string): string {
+  if (role !== MessageRole.Assistant) return content;
+  const json = formatStringToJSON(content);
+  if (json && typeof json === "object") {
+    if (Array.isArray(json.messages) && typeof json.emotion === "string") {
+      return json.messages
+        .map((m: any) => (typeof m === "object" && m.value ? m.value : m))
+        .join(" ");
+    }
+    if (
+      json.messages &&
+      typeof json.messages === "object" &&
+      Array.isArray(json.messages.messages)
+    ) {
+      return json.messages.messages
+        .map((m: any) => (typeof m === "object" && m.value ? m.value : m))
+        .join(" ");
+    }
+  }
+  return content;
+}
+
 export function ChatMessage(props: IChatMessage) {
   const { message } = props;
   const { id, content, role, timestamp, type } = message;
 
-  let parsedContent = content;
-  if (role === MessageRole.Assistant) {
-    let json = formatStringToJSON(content);
-    // Handle both {messages:[],emotion:""} and {messages:{messages:[],emotion:""}}
-    if (json && typeof json === "object") {
-      // Case 1: {messages:[], emotion:""}
-      if (Array.isArray(json.messages) && typeof json.emotion === "string") {
-        parsedContent =
-          (json.emotion ? json.emotion + " " : "") +
-          json.messages
-            .map((m: any) =>
-              typeof m === "object" && m.value ? m.value : m
-            )
-            .join(" ");
-      }
-      // Case 2: {messages:{messages:[],emotion:""}}
-      else if (
-        json.messages &&
-        typeof json.messages === "object" &&
-        Array.isArray(json.messages.messages)
-      ) {
-        parsedContent =
-          (json.messages.emotion ? json.messages.emotion + " " : "") +
-          json.messages.messages
-            .map((m: any) =>
-              typeof m === "object" && m.value ? m.value : m
-            )
-            .join(" ");
-      }
-    }
-  }
+  const parsedContent = parseMessageContent(content, role);
   return (
     <div
       key={id}
@@ -641,68 +635,60 @@ export function AITutor(props: AITutorProps) {
         )}
       </AnimatePresence>
 
-      {/* Stacked Notifications - Only shown when chat is closed */}
+      {/* Last Assistant Notification - Only shown when chat is closed */}
       <AnimatePresence>
-        {!isExpanded && messages.length > 0 && (
-          <motion.div
-            className="fixed bottom-20 right-4 flex flex-col-reverse gap-2 max-w-xs w-full"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            {messages
-              .slice(-3)
-              .reverse()
-              .map(
-                (message, index) =>
-                  message.role === MessageRole.Assistant && (
-                    <motion.div
-                      key={message.id}
-                      className="bg-card/95 backdrop-blur-sm border border-primary/20 rounded-lg p-3 shadow-md"
-                      initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                      animate={{
-                        opacity: 1,
-                        y: 0,
-                        scale: 1,
-                        transition: { delay: index * 0.1 },
-                      }}
-                      exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                      style={{ zIndex: 40 - index }}
-                    >
-                      <div className="flex items-start gap-2">
-                        <Avatar className="h-6 w-6 mt-0.5">
-                          <AvatarFallback className="bg-primary/20 text-primary">
-                            <Bot className="h-3 w-3" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 text-sm">
-                          <p className="line-clamp-3">{message.content}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {message.timestamp.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 -mt-1 -mr-1 opacity-60 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMessages((prev) =>
-                              prev.filter((m) => m.id !== message.id)
-                            );
-                          }}
-                        >
-                          <LucideX className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </motion.div>
-                  )
-              )}
-          </motion.div>
-        )}
+        {!isExpanded && (() => {
+          const lastAssistantMessage = [...messages].reverse().find(m => m.role === MessageRole.Assistant);
+          return lastAssistantMessage ? (
+            <motion.div
+              className="fixed bottom-20 right-4 flex flex-col-reverse gap-2 max-w-xs w-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                key={lastAssistantMessage.id}
+                className="bg-card/95 backdrop-blur-sm border border-primary/20 rounded-lg p-3 shadow-md"
+                initial={{ opacity: 0, y: 20, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                style={{ zIndex: 40 }}
+              >
+                <div className="flex items-start gap-2">
+                  <Avatar className="h-6 w-6 mt-0.5">
+                    <AvatarFallback className="bg-primary/20 text-primary">
+                      <Bot className="h-3 w-3" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 text-sm">
+                    <p className="line-clamp-3">
+                      {parseMessageContent(lastAssistantMessage.content, lastAssistantMessage.role)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {lastAssistantMessage.timestamp.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 -mt-1 -mr-1 opacity-60 hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMessages((prev) =>
+                        prev.filter((m) => m.id !== lastAssistantMessage.id)
+                      );
+                    }}
+                  >
+                    <LucideX className="h-3 w-3" />
+                  </Button>
+                </div>
+              </motion.div>
+            </motion.div>
+          ) : null;
+        })()}
       </AnimatePresence>
 
       {/* AI Avatar */}
