@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,12 +32,14 @@ interface SimpleMidiListenerProps {
   midiData: MidiNote[]
   activeNote: Record<number, boolean>
   setActiveNotes: (note: number) => void
+  removeActiveNote: (note: number) => void
   clearActiveNotes: () => void
+  playerActiveNotes?: Record<number, boolean>
 }
 
 
 export function SimpleMidiListener(props: SimpleMidiListenerProps) {
-  const { onMidiData, userId, sessionId, referenceId, section = "intro", onPerformanceSent, midiData, clearMidiData, activeNote, setActiveNotes, clearActiveNotes } = props
+  const { onMidiData, userId, sessionId, referenceId, section = "intro", onPerformanceSent, midiData, clearMidiData, activeNote, setActiveNotes, removeActiveNote, clearActiveNotes, playerActiveNotes } = props
   const [connectionStatus, setConnectionStatus] = useState<string>("Initializing...")
   const [error, setError] = useState<string | null>(null)
   const [midiAccess, setMidiAccess] = useState<MIDIAccess | null>(null)
@@ -115,7 +117,7 @@ export function SimpleMidiListener(props: SimpleMidiListenerProps) {
     }
     // Note Off event (command 128-143) or Note On with velocity 0
     else if ((command >= 128 && command <= 143) || (command >= 144 && command <= 159 && velocity === 0)) {
-      clearActiveNotes();
+      removeActiveNote(note);
     }
 
   }
@@ -149,6 +151,13 @@ export function SimpleMidiListener(props: SimpleMidiListenerProps) {
       isSendingRef.current = false;
     }
   };
+
+  const allActiveNoteNumbers = useMemo(() => {
+    const keys = new Set<number>();
+    Object.keys(activeNote).forEach(k => keys.add(Number(k)));
+    if (playerActiveNotes) Object.keys(playerActiveNotes).forEach(k => keys.add(Number(k)));
+    return Array.from(keys);
+  }, [activeNote, playerActiveNotes]);
 
   // Create an array of all possible piano keys for visualization
   const pianoKeys = Array.from({ length: 88 }, (_, i) => i + 21) // MIDI notes 21-108 (standard 88-key piano)
@@ -208,20 +217,23 @@ export function SimpleMidiListener(props: SimpleMidiListenerProps) {
         <div>
           <h3 className="text-lg font-medium mb-3">Active Notes</h3>
           <div className="flex flex-wrap gap-1 mb-4 min-h-16 p-4 border rounded-md bg-muted/20">
-            {Object.keys(activeNote).length === 0 ? (
-              <p className="text-muted-foreground text-sm">No active notes. Play your MIDI device...</p>
+            {allActiveNoteNumbers.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No active notes...</p>
             ) : (
-              Object.keys(activeNote).map((noteNumber) => {
-                const note = Number.parseInt(noteNumber)
+              allActiveNoteNumbers.map((note) => {
+                const fromKeyboard = !!activeNote[note];
+                const fromPlayer = !!playerActiveNotes?.[note];
+                const colorClass = (fromKeyboard && fromPlayer)
+                  ? "bg-amber-500 text-white"
+                  : fromKeyboard
+                    ? "bg-green-500 text-white"
+                    : "bg-purple-500 text-white";
                 return (
-                  <Badge
-                    key={note}
-                    variant="secondary"
-                    className="text-sm px-3 py-1 bg-primary text-primary-foreground animate-pulse"
-                  >
+                  <Badge key={note} variant="secondary"
+                    className={`text-sm px-3 py-1 animate-pulse ${colorClass}`}>
                     {getNoteName(note)}
                   </Badge>
-                )
+                );
               })
             )}
           </div>
@@ -234,14 +246,28 @@ export function SimpleMidiListener(props: SimpleMidiListenerProps) {
               {pianoKeys.map((note) => {
                 const noteName = getNoteName(note)
                 const isBlackKey = noteName.includes("#")
-                const isActive = activeNote[note]
+                const fromKeyboard = !!activeNote[note]
+                const fromPlayer = !!playerActiveNotes?.[note]
+
+                const blackKeyColor = (fromKeyboard && fromPlayer)
+                  ? "bg-amber-500"
+                  : fromKeyboard ? "bg-green-500"
+                  : fromPlayer ? "bg-purple-500"
+                  : "bg-black"
+
+                const whiteKeyColor = (fromKeyboard && fromPlayer)
+                  ? "bg-amber-200"
+                  : fromKeyboard ? "bg-green-200"
+                  : fromPlayer ? "bg-purple-200"
+                  : "bg-white"
+
                 return (
                   <div
                     key={note}
                     className={`
                       ${isBlackKey
-                        ? `h-12 w-6 -mx-3 z-10 relative text-white ${isActive ? "bg-primary" : "bg-black"}`
-                        : `h-20 w-8  border border-gray-300 ${isActive ? "bg-primary/20" : "bg-white"}`
+                        ? `h-12 w-6 -mx-3 z-10 relative text-white ${blackKeyColor}`
+                        : `h-20 w-8 border border-gray-300 ${whiteKeyColor}`
                       }
                       flex items-end justify-center pb-1 text-[8px] transition-colors
                     `}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getReferenceById } from "@/lib/api/reference";
 import { useUser } from "@/context/UserContext";
 import { Midi } from "@tonejs/midi";
@@ -52,10 +52,16 @@ export default function AIPracticePage() {
   const {
     midiNotes,
     addMidiNote,
+    addMidiNoteForPlayback,
     clearMidiNotes,
     activeNotes,
     setActiveNote,
+    removeActiveNote,
     clearActiveNote,
+    playerActiveNotes,
+    setPlayerActiveNote,
+    removePlayerActiveNote,
+    clearPlayerActiveNotes,
   } = useMidiStore();
 
   const clearMidiData = () => clearMidiNotes();
@@ -63,6 +69,25 @@ export default function AIPracticePage() {
   const handleMidiData = (data: MidiNote) => {
     addMidiNote(data);
   };
+
+  // Playback callbacks for CustomMidiPlayer
+  const handlePlaybackNoteOn = useCallback((note: { midi: number; name: string; velocity: number; duration: number }) => {
+    setPlayerActiveNote(note.midi);
+    addMidiNoteForPlayback({
+      note: note.midi,
+      noteName: note.name,
+      velocity: Math.round(note.velocity * 127),
+      time: Date.now(),
+    });
+  }, [setPlayerActiveNote, addMidiNoteForPlayback]);
+
+  const handlePlaybackNoteOff = useCallback((midiNote: number) => {
+    removePlayerActiveNote(midiNote);
+  }, [removePlayerActiveNote]);
+
+  const handlePlaybackStop = useCallback(() => {
+    clearPlayerActiveNotes();
+  }, [clearPlayerActiveNotes]);
 
   // Call this function after a performance is sent to backend to refresh stats
   const refreshPerformances = () => setRefreshKey((k) => k + 1);
@@ -250,7 +275,12 @@ export default function AIPracticePage() {
           </div>
 
           {/*Custom Midi player */}
-          <CustomMidiPlayer midi={midiSong} />
+          <CustomMidiPlayer
+            midi={midiSong}
+            onNoteOn={handlePlaybackNoteOn}
+            onNoteOff={handlePlaybackNoteOff}
+            onStop={handlePlaybackStop}
+          />
 
           {/* Piano Keyboard */}
 
@@ -265,7 +295,9 @@ export default function AIPracticePage() {
             midiData={midiNotes}
             activeNote={activeNotes}
             setActiveNotes={setActiveNote}
+            removeActiveNote={removeActiveNote}
             clearActiveNotes={clearActiveNote}
+            playerActiveNotes={playerActiveNotes}
           />
 
           {/* Stats Toggle Button */}

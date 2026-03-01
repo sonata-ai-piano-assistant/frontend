@@ -6,9 +6,12 @@ import { Pause, StopCircle, Play } from "lucide-react";
 
 type CustomMidiPlayerType = {
   midi: Midi | null;
+  onNoteOn?: (note: { midi: number; name: string; velocity: number; duration: number }) => void;
+  onNoteOff?: (midiNote: number) => void;
+  onStop?: () => void;
 };
 
-export const CustomMidiPlayer = ({ midi }: CustomMidiPlayerType) => {
+export const CustomMidiPlayer = ({ midi, onNoteOn, onNoteOff, onStop }: CustomMidiPlayerType) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -69,11 +72,17 @@ useEffect(() => {
             time,
             note.velocity
           );
+
+          Tone.Draw.schedule(() => {
+            onNoteOn?.({ midi: note.midi, name: note.name, velocity: note.velocity, duration: note.duration });
+            setTimeout(() => { onNoteOff?.(note.midi); }, note.duration * 1000);
+          }, time);
         },
         midi.tracks.flatMap((track) =>
           track.notes.map((note) => ({
             time: note.time,
             name: note.name,
+            midi: note.midi,
             duration: note.duration,
             velocity: note.velocity,
           }))
@@ -92,6 +101,7 @@ useEffect(() => {
     Tone.getTransport().pause();
     stopProgressTracking();
     setIsPlaying(false);
+    onStop?.();
   };
 
   const handleStop = () => {
@@ -104,6 +114,7 @@ useEffect(() => {
     synthRef.current = null;
     setCurrentTime(0);
     setIsPlaying(false);
+    onStop?.();
   };
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = parseInt(e.target.value);
