@@ -98,7 +98,7 @@ const formatAiResponse = (msg: any) => {
     content = msg.content;
   }
   // Strip [context: ...] prefix from user messages fetched from backend
-  content = content.replace(/^\[context:.*?\]\s*/s, "");
+  content = content.replace(/^\[context:[\s\S]*?\]\s*/, "");
   return {
     id: msg.id,
     content,

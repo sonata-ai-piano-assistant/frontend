@@ -28,6 +28,8 @@ const formatAiResponse = (msg: IThreadMessage) => {
   } else if (typeof msg.content === "string") {
     content = msg.content;
   }
+  // Strip [context: ...] prefix from user messages fetched from backend
+  content = content.replace(/^\[context:[\s\S]*?\]\s*/, "");
   return {
     id: msg.id,
     content,
