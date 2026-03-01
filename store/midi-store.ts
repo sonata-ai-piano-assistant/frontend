@@ -6,12 +6,18 @@ interface MidiStore {
   lastNoteTime: number;
   recentNotes: Set<string>;
   addMidiNote: (note: MidiNote) => void;
+  addMidiNoteForPlayback: (note: MidiNote) => void;
   clearMidiNotes: () => void;
   setDebounceInterval: (interval: number) => void;
   debounceInterval: number;
   activeNotes: Record<number, boolean>;
   setActiveNote: (note: number) => void;
+  removeActiveNote: (note: number) => void;
   clearActiveNote: () => void;
+  playerActiveNotes: Record<number, boolean>;
+  setPlayerActiveNote: (note: number) => void;
+  removePlayerActiveNote: (note: number) => void;
+  clearPlayerActiveNotes: () => void;
 }
 
 export const useMidiStore = create<MidiStore>((set, get) => ({
@@ -22,7 +28,21 @@ export const useMidiStore = create<MidiStore>((set, get) => ({
   activeNotes: {},
 
   setActiveNote: (note) => set({ activeNotes: { ...get().activeNotes, [note]: true } }),
+  removeActiveNote: (note) => set((state) => {
+    const updated = { ...state.activeNotes };
+    delete updated[note];
+    return { activeNotes: updated };
+  }),
   clearActiveNote: () => set({ activeNotes: {} }),
+  playerActiveNotes: {},
+  setPlayerActiveNote: (note) =>
+    set({ playerActiveNotes: { ...get().playerActiveNotes, [note]: true } }),
+  removePlayerActiveNote: (note) => set((state) => {
+    const updated = { ...state.playerActiveNotes };
+    delete updated[note];
+    return { playerActiveNotes: updated };
+  }),
+  clearPlayerActiveNotes: () => set({ playerActiveNotes: {} }),
   addMidiNote: (note) => set((state) => {
     const now = Date.now();
 
@@ -64,6 +84,9 @@ export const useMidiStore = create<MidiStore>((set, get) => ({
       recentNotes: newRecentNotes,
     };
   }),
+  addMidiNoteForPlayback: (note) => set((state) => ({
+    midiNotes: [note, ...state.midiNotes],
+  })),
   clearMidiNotes: () => set({
     midiNotes: [],
     lastNoteTime: 0,
