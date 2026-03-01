@@ -29,11 +29,13 @@ export default function HistoryPage() {
       getSessionsByUserId(user.id)
         .then((data) => {
           // Sort sessions by startedAt descending (most recent first)
-          const sorted = [...data].sort((a, b) => {
-            const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0;
-            const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0;
-            return bTime - aTime;
-          });
+          const sorted = [...data]
+            .filter((s) => s.endedAt)
+            .sort((a, b) => {
+              const aTime = a.startedAt ? new Date(a.startedAt).getTime() : 0;
+              const bTime = b.startedAt ? new Date(b.startedAt).getTime() : 0;
+              return bTime - aTime;
+            });
           setSessions(sorted);
         })
         .finally(() => setLoading(false));
@@ -59,21 +61,19 @@ export default function HistoryPage() {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Lesson</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
-                  <TableRow><TableCell colSpan={4}>Loading...</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={3}>Loading...</TableCell></TableRow>
                 ) : sessions.length === 0 ? (
-                  <TableRow><TableCell colSpan={4}>No sessions found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={3}>No sessions found.</TableCell></TableRow>
                 ) : (
                   sessions.map((session) => (
                     <TableRow key={session._id}>
                       <TableCell>{session.startedAt ? new Date(session.startedAt).toLocaleString() : "-"}</TableCell>
                       <TableCell>{session.reference.name || "-"}</TableCell>
-                      <TableCell>{session.endedAt ? "Ended" : "Active"}</TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" asChild>
                           <Link href={`/dashboard/history/${session._id}`}>

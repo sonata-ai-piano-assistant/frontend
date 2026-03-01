@@ -226,6 +226,7 @@ export function AITutor(props: AITutorProps) {
 
   const onSubmit = (data: AIChatMessage) => {
     handleSendMessage(data.message);
+    setValue("message", "");
   };
 
   // Initialize speech synthesis
