@@ -44,6 +44,24 @@ export default function SessionDetailPage() {
   >([]);
   const [loading, setLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+
+  const fetchThread = (threadId: string) => {
+    setChatLoading(true);
+    setChatError(null);
+    getThreadById(threadId)
+      .then((threadData) => {
+        const formatted = threadData.messages
+          .map(formatAiResponse)
+          .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+        setThreadMessages(formatted);
+      })
+      .catch((err) => {
+        console.error("Error fetching thread:", err);
+        setChatError(err?.message || err?.error || "Failed to load chat messages");
+      })
+      .finally(() => setChatLoading(false));
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -51,18 +69,8 @@ export default function SessionDetailPage() {
       .then((res) => res.json())
       .then((data) => {
         setSession(data);
-        // Fetch thread messages if session has a threadId
         if (data.threadId) {
-          setChatLoading(true);
-          getThreadById(data.threadId)
-            .then((threadData) => {
-              const formatted = threadData.messages
-                .map(formatAiResponse)
-                .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-              setThreadMessages(formatted);
-            })
-            .catch((err) => console.error("Error fetching thread:", err))
-            .finally(() => setChatLoading(false));
+          fetchThread(data.threadId);
         }
       })
       .finally(() => setLoading(false));
@@ -118,8 +126,19 @@ export default function SessionDetailPage() {
             <CardContent>
               {chatLoading ? (
                 <div className="text-muted-foreground text-sm">Loading chat messages...</div>
+              ) : chatError ? (
+                <div className="flex flex-col gap-2">
+                  <div className="text-destructive text-sm">Error: {chatError}</div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchThread(session.threadId!)}
+                  >
+                    Retry
+                  </Button>
+                </div>
               ) : threadMessages.length > 0 ? (
-                <ScrollArea className="max-h-96 pr-4">
+                <ScrollArea className="h-96 pr-4">
                   <div className="space-y-3">
                     {threadMessages.map((msg) => (
                       <ChatMessage key={msg.id} message={msg} />
