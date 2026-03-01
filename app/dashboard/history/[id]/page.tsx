@@ -1,24 +1,70 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import Link from "next/link";
+import { BDD_SERVICE_URL } from "@/lib/config/service-urls";
+import { getThreadById } from "@/lib/api/assistant";
+import { ChatMessage } from "@/components/practice/ai-tutor";
+import { ISession, IThreadMessage } from "@/types";
 
+const formatAiResponse = (msg: IThreadMessage) => {
+  let content = "";
+  if (Array.isArray(msg.content)) {
+    content = msg.content
+      .map((part) => {
+        if (part.text && typeof part.text === "object" && part.text.value) {
+          return part.text.value;
+        }
+        if (typeof part.text === "string") {
+          return part.text;
+        }
+        return "";
+      })
+      .join(" ");
+  } else if (typeof msg.content === "string") {
+    content = msg.content;
+  }
+  return {
+    id: msg.id,
+    content,
+    role: msg.role as "user" | "assistant",
+    timestamp: new Date(msg.created_at * 1000),
+  };
+};
 
 export default function SessionDetailPage() {
   const { id } = useParams();
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<ISession | null>(null);
+  const [threadMessages, setThreadMessages] = useState<
+    { id: string; content: string; role: "user" | "assistant"; timestamp: Date }[]
+  >([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const [chatLoading, setChatLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
-    // You may want to create a getSessionById API call for a single session
-    fetch(`${process.env.NEXT_PUBLIC_BDD_SERVICE_URL || "http://localhost:4002"}/api/sessions/${id}`)
+    fetch(`${BDD_SERVICE_URL}/api/sessions/${id}`)
       .then((res) => res.json())
-      .then(setSession)
+      .then((data) => {
+        setSession(data);
+        // Fetch thread messages if session has a threadId
+        if (data.threadId) {
+          setChatLoading(true);
+          getThreadById(data.threadId)
+            .then((threadData) => {
+              const formatted = threadData.messages
+                .map(formatAiResponse)
+                .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+              setThreadMessages(formatted);
+            })
+            .catch((err) => console.error("Error fetching thread:", err))
+            .finally(() => setChatLoading(false));
+        }
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -30,7 +76,7 @@ export default function SessionDetailPage() {
     );
   }
 
-  if (!session || session.error) {
+  if (!session || (session as any).error) {
     return (
       <DashboardShell>
         <div className="flex flex-col items-center justify-center h-full gap-4">
@@ -43,22 +89,50 @@ export default function SessionDetailPage() {
     );
   }
 
+  const referenceName =
+    typeof session.reference === "object" && session.reference !== null
+      ? session.reference.name
+      : session.reference || "-";
+
   return (
     <DashboardShell>
-      <div className="flex flex-col gap-4 max-w-xl mx-auto">
+      <div className="flex flex-col gap-4 max-w-2xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>Session Details</CardTitle>
+            <CardTitle>{referenceName !== "-" ? referenceName : "Session Details"}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="mb-2"><b>Session ID:</b> {session._id}</div>
             <div className="mb-2"><b>Started At:</b> {session.startedAt ? new Date(session.startedAt).toLocaleString() : "-"}</div>
             <div className="mb-2"><b>Ended At:</b> {session.endedAt ? new Date(session.endedAt).toLocaleString() : "-"}</div>
             <div className="mb-2"><b>Status:</b> {session.endedAt ? "Ended" : "Active"}</div>
-            <div className="mb-2"><b>Reference:</b> {session.reference || "-"}</div>
-            {/* Add more session details as needed */}
+            <div className="mb-2"><b>Reference:</b> {referenceName}</div>
           </CardContent>
         </Card>
+
+        {session.threadId && (
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Chat History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {chatLoading ? (
+                <div className="text-muted-foreground text-sm">Loading chat messages...</div>
+              ) : threadMessages.length > 0 ? (
+                <ScrollArea className="max-h-96 pr-4">
+                  <div className="space-y-3">
+                    {threadMessages.map((msg) => (
+                      <ChatMessage key={msg.id} message={msg} />
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-muted-foreground text-sm">No messages in this thread.</div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         <Button asChild variant="outline">
           <Link href="/dashboard/history">Back to History</Link>
         </Button>

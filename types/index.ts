@@ -81,8 +81,9 @@ export interface ISubscription {
 export interface ISession {
   _id: string;
   user: string; // ObjectId as string
-  reference: string; // ObjectId as string
+  reference: string | { _id: string; name: string }; // ObjectId or populated object
   startedAt: Date;
   endedAt?: Date;
   status: "active" | "ended" | "cancelled";
+  threadId?: string;
 }
