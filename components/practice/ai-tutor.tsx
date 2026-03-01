@@ -433,16 +433,21 @@ export function AITutor(props: AITutorProps) {
         timestamp: new Date(),
       }]);
     } catch (e: any) {
+      let errorMessage = "An unexpected error occurred";
+      if (e instanceof Error) {
+        errorMessage = e.message;
+      } else if (e && typeof e === "object") {
+        errorMessage = e.error || e.message || JSON.stringify(e);
+      } else if (typeof e === "string") {
+        errorMessage = e;
+      }
+
       setMessages((prev) => prev.filter((m) => m.id !== typingId));
       setMessages((prev) => [
         ...prev,
         {
           id: (Date.now() + 2).toString(),
-          content:
-            "AI error: " +
-            (e && typeof e === "object" && "message" in e
-              ? e.message
-              : String(e)),
+          content: "AI error: " + errorMessage,
           role: MessageRole.Assistant,
           timestamp: new Date(),
           type: MessageType.System,

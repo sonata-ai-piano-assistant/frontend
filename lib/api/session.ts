@@ -25,7 +25,7 @@ import { BDD_SERVICE_URL } from '../config/service-urls';
 
 // Créer une session de pratique
 export async function createPracticeSession(data: CreatePracticeSessionRequest): Promise<CreatePracticeSessionResponse> {
-  const defaultData: CreatePracticeSessionRequest = {...data, reference:"686ac5cede4ffb5a7ae2ec78" };
+  const defaultData: CreatePracticeSessionRequest = {...data, reference:"69a44898492876501288e815" };
   const response = await fetch(`${BDD_SERVICE_URL}/api/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -39,7 +39,10 @@ export async function sendAIMessage({
       body: JSON.stringify({ message, userId, sessionId }),
     }
   );
-  if (!response.ok) throw await response.json();
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || errorData.message || "An unexpected error occurred");
+  }
   const data = await response.json();
   return data;
 }
